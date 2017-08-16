@@ -111,6 +111,7 @@ func (o *Outlook) SendEmail(c context.Context, from string, to string, subject s
 			log.Errorf(c, "%v", err)
 			return err
 		}
+		defer response.Body.Close()
 
 		if response.StatusCode == 200 || response.StatusCode == 202 {
 			log.Infof(c, "%v", response.Body)
@@ -186,6 +187,7 @@ func (o *Outlook) SendEmailWithAttachments(r *http.Request, c context.Context, f
 			log.Errorf(c, "%v", err)
 			return err
 		}
+		defer response.Body.Close()
 
 		if response.StatusCode == 200 || response.StatusCode == 202 {
 			return nil
@@ -210,6 +212,9 @@ func (o *Outlook) SendEmailWithAttachments(r *http.Request, c context.Context, f
 
 func (o *Outlook) GetEmail(r *http.Request, c context.Context, to string, subject string) error {
 	if len(o.AccessToken) > 0 {
+		contextWithTimeout, _ := context.WithTimeout(c, time.Second*15)
+		client := urlfetch.Client(contextWithTimeout)
+
 		URL := BASEURL + "api/v2.0/me/MailFolders/sentitems/messages/?$select=Sender,Subject&$search=\"subject:" + subject + "\""
 		req, _ := http.NewRequest("GET", URL, nil)
 
@@ -221,6 +226,7 @@ func (o *Outlook) GetEmail(r *http.Request, c context.Context, to string, subjec
 			log.Errorf(c, "%v", err)
 			return err
 		}
+		defer response.Body.Close()
 	}
 	return nil
 }
