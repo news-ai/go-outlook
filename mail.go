@@ -5,13 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
-	"time"
 
-	"google.golang.org/appengine/log"
-	"google.golang.org/appengine/urlfetch"
-
-	"github.com/news-ai/tabulae/attach"
 	"github.com/news-ai/tabulae/models"
 
 	"golang.org/x/net/context"
@@ -78,9 +74,6 @@ type GetEmailRequest struct {
 
 func (o *Outlook) SendEmail(c context.Context, from string, to string, subject string, body string, email models.Email) error {
 	if len(o.AccessToken) > 0 {
-		contextWithTimeout, _ := context.WithTimeout(c, time.Second*15)
-		client := urlfetch.Client(contextWithTimeout)
-
 		toEmail := EmailAddress{}
 		toEmail.EmailAddress.Address = to
 
@@ -94,7 +87,7 @@ func (o *Outlook) SendEmail(c context.Context, from string, to string, subject s
 
 		messageJson, err := json.Marshal(message)
 		if err != nil {
-			log.Errorf(c, "%v", err)
+			log.Printf("%v", err)
 			return err
 		}
 
@@ -106,15 +99,16 @@ func (o *Outlook) SendEmail(c context.Context, from string, to string, subject s
 		req.Header.Add("Authorization", "Bearer "+o.AccessToken)
 		req.Header.Add("Content-Type", "application/json")
 
+		client := http.Client{}
 		response, err := client.Do(req)
 		if err != nil {
-			log.Errorf(c, "%v", err)
+			log.Printf("%v", err)
 			return err
 		}
 		defer response.Body.Close()
 
 		if response.StatusCode == 200 || response.StatusCode == 202 {
-			log.Infof(c, "%v", response.Body)
+			log.Printf("%v", response.Body)
 			return nil
 		}
 
@@ -123,11 +117,11 @@ func (o *Outlook) SendEmail(c context.Context, from string, to string, subject s
 		var emailRequestError EmailRequestError
 		err = decoder.Decode(&emailRequestError)
 		if err != nil {
-			log.Errorf(c, "%v", err)
+			log.Printf("%v", err)
 			return err
 		}
 
-		log.Errorf(c, "%v", emailRequestError.Error)
+		log.Printf("%v", emailRequestError.Error)
 
 		return errors.New("Email could not be sent")
 	}
@@ -135,17 +129,13 @@ func (o *Outlook) SendEmail(c context.Context, from string, to string, subject s
 	return errors.New("No access token supplied")
 }
 
-func (o *Outlook) SendEmailWithAttachments(r *http.Request, c context.Context, from string, to string, subject string, body string, email models.Email, files []models.File) error {
+func (o *Outlook) SendEmailWithAttachments(c context.Context, from string, to string, subject string, body string, email models.Email, files []models.File, bytesArray [][]byte, attachmentType []string, fileNames []string) error {
 	if len(o.AccessToken) > 0 {
-		contextWithTimeout, _ := context.WithTimeout(c, time.Second*15)
-		client := urlfetch.Client(contextWithTimeout)
-
 		toEmail := EmailAddress{}
 		toEmail.EmailAddress.Address = to
 
 		attachments := []Attachment{}
-		bytesArray, _, fileNames, err := attach.GetAttachmentsForEmail(r, email, files)
-		if err == nil {
+		if len(files) > 0 {
 			for x := 0; x < len(bytesArray); x++ {
 				str := base64.StdEncoding.EncodeToString(bytesArray[x])
 
@@ -170,7 +160,7 @@ func (o *Outlook) SendEmailWithAttachments(r *http.Request, c context.Context, f
 
 		messageJson, err := json.Marshal(message)
 		if err != nil {
-			log.Errorf(c, "%v", err)
+			log.Printf("%v", err)
 			return err
 		}
 
@@ -182,9 +172,10 @@ func (o *Outlook) SendEmailWithAttachments(r *http.Request, c context.Context, f
 		req.Header.Add("Authorization", "Bearer "+o.AccessToken)
 		req.Header.Add("Content-Type", "application/json")
 
+		client := http.Client{}
 		response, err := client.Do(req)
 		if err != nil {
-			log.Errorf(c, "%v", err)
+			log.Printf("%v", err)
 			return err
 		}
 		defer response.Body.Close()
@@ -198,11 +189,11 @@ func (o *Outlook) SendEmailWithAttachments(r *http.Request, c context.Context, f
 		var emailRequestError EmailRequestError
 		err = decoder.Decode(&emailRequestError)
 		if err != nil {
-			log.Errorf(c, "%v", err)
+			log.Printf("%v", err)
 			return err
 		}
 
-		log.Errorf(c, "%v", emailRequestError.Error)
+		log.Printf("%v", emailRequestError.Error)
 
 		return errors.New("Email could not be sent")
 	}
@@ -210,20 +201,18 @@ func (o *Outlook) SendEmailWithAttachments(r *http.Request, c context.Context, f
 	return errors.New("No access token supplied")
 }
 
-func (o *Outlook) GetEmail(r *http.Request, c context.Context, to string, subject string) error {
+func (o *Outlook) GetEmail(c context.Context, to string, subject string) error {
 	if len(o.AccessToken) > 0 {
-		contextWithTimeout, _ := context.WithTimeout(c, time.Second*15)
-		client := urlfetch.Client(contextWithTimeout)
-
 		URL := BASEURL + "api/v2.0/me/MailFolders/sentitems/messages/?$select=Sender,Subject&$search=\"subject:" + subject + "\""
 		req, _ := http.NewRequest("GET", URL, nil)
 
 		req.Header.Add("Authorization", "Bearer "+o.AccessToken)
 		req.Header.Add("Content-Type", "application/json")
 
+		client := http.Client{}
 		response, err := client.Do(req)
 		if err != nil {
-			log.Errorf(c, "%v", err)
+			log.Printf("%v", err)
 			return err
 		}
 		defer response.Body.Close()
